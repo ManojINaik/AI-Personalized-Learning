@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { X, Brain, ArrowRight, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Brain, ArrowRight, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
 import { Question, questions } from './questions';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface AssessmentModalProps {
   isOpen: boolean;
@@ -8,15 +9,40 @@ interface AssessmentModalProps {
 }
 
 const AssessmentModal = ({ isOpen, onClose }: AssessmentModalProps) => {
+  const { user } = useAuth();
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<string[]>([]);
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [completed, setCompleted] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(30 * 60); // 30 minutes in seconds
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isOpen && !completed && timeLeft > 0) {
+      timer = setInterval(() => {
+        setTimeLeft(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            setCompleted(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [isOpen, completed, timeLeft]);
 
   if (!isOpen) return null;
 
   const currentQuestions = questions.filter(q => q.difficulty === difficulty);
   const question = currentQuestions[currentQuestion];
+
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
 
   const handleAnswer = (answer: string) => {
     const newAnswers = [...answers, answer];
@@ -47,6 +73,8 @@ const AssessmentModal = ({ isOpen, onClose }: AssessmentModalProps) => {
     (answer, index) => answer === currentQuestions[index].correctAnswer
   ).length;
 
+  const scorePercentage = Math.round((score / currentQuestions.length) * 100);
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl p-8 max-w-2xl w-full mx-4 relative animate-fadeIn">
@@ -59,11 +87,17 @@ const AssessmentModal = ({ isOpen, onClose }: AssessmentModalProps) => {
 
         {!completed ? (
           <>
-            <div className="flex items-center space-x-2 mb-6">
-              <Brain className="h-6 w-6 text-indigo-600" />
-              <h2 className="text-2xl font-bold text-gray-900">
-                Smart Assessment
-              </h2>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-2">
+                <Brain className="h-6 w-6 text-indigo-600" />
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Smart Assessment
+                </h2>
+              </div>
+              <div className="flex items-center text-gray-600">
+                <Clock className="h-5 w-5 mr-2" />
+                {formatTime(timeLeft)}
+              </div>
             </div>
 
             <div className="mb-4">
@@ -75,9 +109,10 @@ const AssessmentModal = ({ isOpen, onClose }: AssessmentModalProps) => {
                   }}
                 />
               </div>
-              <p className="text-sm text-gray-600 mt-2">
-                Question {currentQuestion + 1} of {currentQuestions.length}
-              </p>
+              <div className="flex justify-between mt-2 text-sm text-gray-600">
+                <span>Question {currentQuestion + 1} of {currentQuestions.length}</span>
+                <span>Difficulty: {difficulty}</span>
+              </div>
             </div>
 
             <div className="mb-8">
@@ -96,10 +131,6 @@ const AssessmentModal = ({ isOpen, onClose }: AssessmentModalProps) => {
                 ))}
               </div>
             </div>
-
-            <div className="text-sm text-gray-600">
-              Difficulty: {difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}
-            </div>
           </>
         ) : (
           <div className="text-center">
@@ -110,22 +141,43 @@ const AssessmentModal = ({ isOpen, onClose }: AssessmentModalProps) => {
               Assessment Complete!
             </h2>
             <p className="text-gray-600 mb-6">
-              You scored {score} out of {currentQuestions.length} questions correctly.
+              You scored {scorePercentage}% ({score} out of {currentQuestions.length} correct)
             </p>
-            <div className="bg-indigo-50 rounded-lg p-4 mb-6">
-              <p className="text-indigo-700">
-                Based on your performance, we recommend starting with{' '}
-                {score > 7 ? 'advanced' : score > 4 ? 'intermediate' : 'beginner'}{' '}
-                level courses.
-              </p>
+            
+            <div className="bg-indigo-50 rounded-lg p-4 mb-6 text-left">
+              <h3 className="font-semibold text-indigo-900 mb-2">Performance Analysis</h3>
+              <ul className="space-y-2 text-indigo-700">
+                <li className="flex items-center">
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Strong performance in: Logic & Problem Solving
+                </li>
+                <li className="flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-2" />
+                  Areas for improvement: Data Structures
+                </li>
+              </ul>
             </div>
-            <button
-              onClick={onClose}
-              className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors inline-flex items-center"
-            >
-              Continue to Dashboard
-              <ArrowRight className="h-4 w-4 ml-2" />
-            </button>
+
+            <div className="flex space-x-4">
+              <button
+                onClick={onClose}
+                className="flex-1 px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  setCurrentQuestion(0);
+                  setAnswers([]);
+                  setCompleted(false);
+                  setTimeLeft(30 * 60);
+                }}
+                className="flex-1 bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors inline-flex items-center justify-center"
+              >
+                Retake Assessment
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </button>
+            </div>
           </div>
         )}
       </div>

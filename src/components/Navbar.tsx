@@ -1,6 +1,7 @@
 import React from 'react';
 import { Brain } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 interface NavbarProps {
   onGetStarted: () => void;
@@ -8,28 +9,59 @@ interface NavbarProps {
 
 const Navbar = ({ onGetStarted }: NavbarProps) => {
   const { user, signOut } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate('/', { replace: true });
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
+  const handleLogoClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    navigate(user ? '/assessment' : '/', { replace: true });
+  };
 
   return (
     <nav className="bg-white/80 backdrop-blur-md border-b border-gray-100 fixed w-full z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
-          <div className="flex items-center space-x-2">
+          <Link 
+            to={user ? '/assessment' : '/'} 
+            className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
+            onClick={handleLogoClick}
+          >
             <Brain className="h-8 w-8 text-indigo-600" />
             <span className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 text-transparent bg-clip-text">
               LearnSmart AI
             </span>
-          </div>
+          </Link>
           
           <div className="hidden md:flex items-center space-x-8">
-            <a href="#" className="text-gray-700 hover:text-indigo-600 transition-colors">Features</a>
-            <a href="#" className="text-gray-700 hover:text-indigo-600 transition-colors">How it Works</a>
-            <a href="#" className="text-gray-700 hover:text-indigo-600 transition-colors">Testimonials</a>
+            {!user && location.pathname === '/' && (
+              <>
+                <a href="#features" className="text-gray-700 hover:text-indigo-600 transition-colors">Features</a>
+                <a href="#how-it-works" className="text-gray-700 hover:text-indigo-600 transition-colors">How it Works</a>
+                <a href="#testimonials" className="text-gray-700 hover:text-indigo-600 transition-colors">Testimonials</a>
+              </>
+            )}
             {user ? (
               <div className="flex items-center space-x-4">
-                <span className="text-gray-700">Welcome, {user.name}!</span>
+                <Link 
+                  to="/profile" 
+                  className={`text-gray-700 hover:text-indigo-600 transition-colors ${
+                    location.pathname === '/profile' ? 'text-indigo-600' : ''
+                  }`}
+                >
+                  Profile
+                </Link>
                 <button 
-                  onClick={signOut}
-                  className="text-gray-600 hover:text-gray-800"
+                  onClick={handleSignOut}
+                  className="text-gray-600 hover:text-gray-800 transition-colors"
                 >
                   Sign Out
                 </button>
@@ -47,6 +79,6 @@ const Navbar = ({ onGetStarted }: NavbarProps) => {
       </div>
     </nav>
   );
-}
+};
 
 export default Navbar;
