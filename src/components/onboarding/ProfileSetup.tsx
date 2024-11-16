@@ -1,110 +1,136 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { Loader2, AlertCircle, BookOpen, Code, Calculator } from 'lucide-react';
+import { Loader2, AlertCircle, Code, Database, Globe, Terminal, Server, Layout } from 'lucide-react';
+import { getProfileData, updateProfileData, type ProfileData } from '../../services/profile.service';
 
-interface ProfileData {
-  age: string;
-  grade: string;
-  interests: string[];
-  strengths: string[];
-  learningStyle: 'visual' | 'auditory' | 'kinesthetic' | '';
+interface ProfileSetupProps {
+  onComplete?: () => void;
 }
 
-const ProfileSetup = () => {
-  const { user, updateUser } = useAuth();
+const ProfileSetup: React.FC<ProfileSetupProps> = ({ onComplete }) => {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [profileData, setProfileData] = useState<ProfileData>({
-    age: '',
-    grade: '',
-    interests: [],
     strengths: [],
+    weaknesses: [],
     learningStyle: ''
   });
 
-  const subjects = [
-    { id: 'math', label: 'Mathematics', icon: Calculator },
-    { id: 'programming', label: 'Programming', icon: Code },
-    { id: 'science', label: 'Science', icon: BookOpen }
+  // Load user's existing profile data from Firestore
+  useEffect(() => {
+    const loadProfileData = async () => {
+      if (!user) return;
+
+      try {
+        const data = await getProfileData(user.id);
+        if (data) {
+          setProfileData({
+            strengths: data.strengths || [],
+            weaknesses: data.weaknesses || [],
+            learningStyle: data.learningStyle || ''
+          });
+        }
+      } catch (err: any) {
+        setError(err.message || 'Failed to load profile data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadProfileData();
+  }, [user]);
+
+  const programmingSkills = [
+    { id: 'frontend', label: 'Frontend Development', icon: Layout },
+    { id: 'backend', label: 'Backend Development', icon: Server },
+    { id: 'databases', label: 'Databases', icon: Database },
+    { id: 'algorithms', label: 'Algorithms & Data Structures', icon: Code },
+    { id: 'web', label: 'Web Technologies', icon: Globe },
+    { id: 'cli', label: 'Command Line & Tools', icon: Terminal }
   ];
 
   const learningStyles = [
-    { id: 'visual', label: 'Visual Learning', description: 'Learn best through images and diagrams' },
-    { id: 'auditory', label: 'Auditory Learning', description: 'Learn best through listening and discussion' },
-    { id: 'kinesthetic', label: 'Hands-on Learning', description: 'Learn best through practical activities' }
+    { 
+      id: 'visual', 
+      label: 'Visual Learning', 
+      description: 'Learn through diagrams, flowcharts, and visual documentation' 
+    },
+    { 
+      id: 'reading', 
+      label: 'Reading/Writing', 
+      description: 'Learn through reading documentation and writing code' 
+    },
+    { 
+      id: 'kinesthetic', 
+      label: 'Hands-on Coding', 
+      description: 'Learn by building projects and practicing code' 
+    }
   ];
 
-  const handleInterestToggle = (subject: string) => {
+  const handleToggle = (skill: string, type: 'strengths' | 'weaknesses') => {
     setProfileData(prev => ({
       ...prev,
-      interests: prev.interests.includes(subject)
-        ? prev.interests.filter(i => i !== subject)
-        : [...prev.interests, subject]
+      [type]: prev[type].includes(skill)
+        ? prev[type].filter(s => s !== skill)
+        : [...prev[type], skill]
     }));
   };
 
   const handleSubmit = async () => {
+    if (!user) return;
+    
     setIsLoading(true);
     setError(null);
 
     try {
-      await updateUser({
-        profile: {
-          ...profileData,
-          setupCompleted: true
-        }
+      await updateProfileData(user.id, {
+        ...profileData,
+        setupCompleted: true
       });
-      navigate('/dashboard');
+      // Call the onComplete callback if provided
+      if (onComplete) {
+        onComplete();
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to save profile');
       setIsLoading(false);
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+      </div>
+    );
+  }
+
   const renderStep = () => {
     switch (step) {
       case 1:
         return (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-gray-900">Basic Information</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Age
-                </label>
-                <input
-                  type="number"
-                  value={profileData.age}
-                  onChange={(e) => setProfileData(prev => ({ ...prev, age: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  min="5"
-                  max="100"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Grade Level
-                </label>
-                <select
-                  value={profileData.grade}
-                  onChange={(e) => setProfileData(prev => ({ ...prev, grade: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  required
+            <h2 className="text-2xl font-bold text-gray-900">Your Programming Strengths</h2>
+            <p className="text-gray-600">Select the areas you're most confident in:</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {programmingSkills.map(skill => (
+                <button
+                  key={skill.id}
+                  onClick={() => handleToggle(skill.id, 'strengths')}
+                  className={`p-4 rounded-lg border ${
+                    profileData.strengths.includes(skill.id)
+                      ? 'border-indigo-500 bg-indigo-50'
+                      : 'border-gray-200 hover:border-indigo-300'
+                  } transition-colors`}
                 >
-                  <option value="">Select Grade</option>
-                  {Array.from({ length: 12 }, (_, i) => (
-                    <option key={i + 1} value={i + 1}>
-                      Grade {i + 1}
-                    </option>
-                  ))}
-                  <option value="college">College</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
+                  <skill.icon className="h-6 w-6 text-indigo-600 mb-2" />
+                  <span className="font-medium">{skill.label}</span>
+                </button>
+              ))}
             </div>
           </div>
         );
@@ -112,20 +138,21 @@ const ProfileSetup = () => {
       case 2:
         return (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-gray-900">Areas of Interest</h2>
+            <h2 className="text-2xl font-bold text-gray-900">Areas to Improve</h2>
+            <p className="text-gray-600">Select the programming areas you'd like to strengthen:</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {subjects.map(subject => (
+              {programmingSkills.map(skill => (
                 <button
-                  key={subject.id}
-                  onClick={() => handleInterestToggle(subject.id)}
+                  key={skill.id}
+                  onClick={() => handleToggle(skill.id, 'weaknesses')}
                   className={`p-4 rounded-lg border ${
-                    profileData.interests.includes(subject.id)
+                    profileData.weaknesses.includes(skill.id)
                       ? 'border-indigo-500 bg-indigo-50'
-                      : 'border-gray-200 hover:border-indigo-500'
+                      : 'border-gray-200 hover:border-indigo-300'
                   } transition-colors`}
                 >
-                  <subject.icon className="h-6 w-6 text-indigo-600 mb-2" />
-                  <p className="font-medium">{subject.label}</p>
+                  <skill.icon className="h-6 w-6 text-indigo-600 mb-2" />
+                  <span className="font-medium">{skill.label}</span>
                 </button>
               ))}
             </div>
@@ -136,15 +163,19 @@ const ProfileSetup = () => {
         return (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-gray-900">Learning Style</h2>
+            <p className="text-gray-600">How do you prefer to learn programming?</p>
             <div className="space-y-4">
               {learningStyles.map(style => (
                 <button
                   key={style.id}
-                  onClick={() => setProfileData(prev => ({ ...prev, learningStyle: style.id as any }))}
+                  onClick={() => setProfileData(prev => ({ 
+                    ...prev, 
+                    learningStyle: style.id as ProfileData['learningStyle']
+                  }))}
                   className={`w-full p-4 rounded-lg border ${
                     profileData.learningStyle === style.id
                       ? 'border-indigo-500 bg-indigo-50'
-                      : 'border-gray-200 hover:border-indigo-500'
+                      : 'border-gray-200 hover:border-indigo-300'
                   } transition-colors text-left`}
                 >
                   <p className="font-medium">{style.label}</p>
@@ -157,6 +188,19 @@ const ProfileSetup = () => {
 
       default:
         return null;
+    }
+  };
+
+  const canContinue = () => {
+    switch (step) {
+      case 1:
+        return profileData.strengths.length > 0;
+      case 2:
+        return profileData.weaknesses.length > 0;
+      case 3:
+        return !!profileData.learningStyle;
+      default:
+        return false;
     }
   };
 
@@ -199,11 +243,15 @@ const ProfileSetup = () => {
                 handleSubmit();
               }
             }}
-            disabled={isLoading}
-            className="ml-auto bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center"
+            disabled={isLoading || !canContinue()}
+            className={`ml-auto bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 
+                     transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center`}
           >
             {isLoading ? (
-              <Loader2 className="animate-spin h-5 w-5" />
+              <>
+                <Loader2 className="animate-spin h-5 w-5 mr-2" />
+                Saving...
+              </>
             ) : step === 3 ? (
               'Complete Setup'
             ) : (

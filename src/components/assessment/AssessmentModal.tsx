@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Brain, ArrowRight, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
-import { Question, questions } from './questions';
 import { useAuth } from '../../contexts/AuthContext';
+import { addAssessment, getAssessmentQuestions } from '../../services/firebase.service';
+import type { AssessmentQuestion } from '../../services/firebase.service';
 
 interface AssessmentModalProps {
   isOpen: boolean;
@@ -12,9 +13,25 @@ const AssessmentModal = ({ isOpen, onClose }: AssessmentModalProps) => {
   const { user } = useAuth();
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<string[]>([]);
+  const [questions, setQuestions] = useState<AssessmentQuestion[]>([]);
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [completed, setCompleted] = useState(false);
   const [timeLeft, setTimeLeft] = useState(30 * 60); // 30 minutes in seconds
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const unsubscribe = getAssessmentQuestions((data) => {
+      const filteredQuestions = data.filter(q => q.difficulty === difficulty);
+      setQuestions(filteredQuestions);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [isOpen, difficulty]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -35,8 +52,40 @@ const AssessmentModal = ({ isOpen, onClose }: AssessmentModalProps) => {
 
   if (!isOpen) return null;
 
-  const currentQuestions = questions.filter(q => q.difficulty === difficulty);
-  const question = currentQuestions[currentQuestion];
+  if (loading) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-xl p-8 max-w-2xl w-full mx-4">
+          <div className="flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (questions.length === 0) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-xl p-8 max-w-2xl w-full mx-4">
+          <div className="text-center">
+            <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Questions Available</h3>
+            <p className="text-gray-600 mb-4">There are no questions available for this difficulty level.</p>
+            <button
+              onClick={onClose}
+              className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const currentQuestionData = questions[currentQuestion];
+  if (!currentQuestionData) return null;
 
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -44,13 +93,13 @@ const AssessmentModal = ({ isOpen, onClose }: AssessmentModalProps) => {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  const handleAnswer = (answer: string) => {
+  const handleAnswer = async (answer: string) => {
     const newAnswers = [...answers, answer];
     setAnswers(newAnswers);
 
     // Adapt difficulty based on correct answers
     const correctCount = newAnswers.filter(
-      (a, i) => a === currentQuestions[i].correctAnswer
+      (a, i) => questions[i] && a === questions[i].correctAnswer
     ).length;
     const accuracy = correctCount / newAnswers.length;
 
@@ -62,18 +111,39 @@ const AssessmentModal = ({ isOpen, onClose }: AssessmentModalProps) => {
       setDifficulty('medium');
     }
 
-    if (currentQuestion < currentQuestions.length - 1) {
+    if (currentQuestion < questions.length - 1) {
       setCurrentQuestion(prev => prev + 1);
     } else {
       setCompleted(true);
+      
+      if (user) {
+        setIsSubmitting(true);
+        try {
+          const score = Math.round((correctCount / newAnswers.length) * 100);
+          await addAssessment({
+            userId: user.id,
+            type: currentQuestionData.category === 'knowledge' ? 'Knowledge Assessment' :
+                  currentQuestionData.category === 'skills' ? 'Skills Assessment' : 
+                  'Learning Style Assessment',
+            score,
+            improvement: '+12%',
+            completedAt: new Date()
+          });
+        } catch (error) {
+          console.error('Error saving assessment:', error);
+          setError('Failed to save assessment results');
+        } finally {
+          setIsSubmitting(false);
+        }
+      }
     }
   };
 
   const score = answers.filter(
-    (answer, index) => answer === currentQuestions[index].correctAnswer
+    (answer, index) => questions[index] && answer === questions[index].correctAnswer
   ).length;
 
-  const scorePercentage = Math.round((score / currentQuestions.length) * 100);
+  const scorePercentage = Math.round((score / questions.length) * 100);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -84,6 +154,13 @@ const AssessmentModal = ({ isOpen, onClose }: AssessmentModalProps) => {
         >
           <X className="h-5 w-5" />
         </button>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center text-red-700">
+            <AlertCircle className="h-5 w-5 mr-2" />
+            {error}
+          </div>
+        )}
 
         {!completed ? (
           <>
@@ -105,22 +182,22 @@ const AssessmentModal = ({ isOpen, onClose }: AssessmentModalProps) => {
                 <div
                   className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
                   style={{
-                    width: `${((currentQuestion + 1) / currentQuestions.length) * 100}%`,
+                    width: `${((currentQuestion + 1) / questions.length) * 100}%`,
                   }}
                 />
               </div>
               <div className="flex justify-between mt-2 text-sm text-gray-600">
-                <span>Question {currentQuestion + 1} of {currentQuestions.length}</span>
+                <span>Question {currentQuestion + 1} of {questions.length}</span>
                 <span>Difficulty: {difficulty}</span>
               </div>
             </div>
 
             <div className="mb-8">
               <h3 className="text-lg font-medium text-gray-900 mb-4">
-                {question.question}
+                {currentQuestionData.question}
               </h3>
               <div className="space-y-3">
-                {question.options.map((option, index) => (
+                {currentQuestionData.options.map((option, index) => (
                   <button
                     key={index}
                     onClick={() => handleAnswer(option)}
@@ -141,7 +218,7 @@ const AssessmentModal = ({ isOpen, onClose }: AssessmentModalProps) => {
               Assessment Complete!
             </h2>
             <p className="text-gray-600 mb-6">
-              You scored {scorePercentage}% ({score} out of {currentQuestions.length} correct)
+              You scored {scorePercentage}% ({score} out of {questions.length} correct)
             </p>
             
             <div className="bg-indigo-50 rounded-lg p-4 mb-6 text-left">
@@ -149,11 +226,11 @@ const AssessmentModal = ({ isOpen, onClose }: AssessmentModalProps) => {
               <ul className="space-y-2 text-indigo-700">
                 <li className="flex items-center">
                   <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Strong performance in: Logic & Problem Solving
+                  Strong performance in: {currentQuestionData.category}
                 </li>
                 <li className="flex items-center">
                   <AlertCircle className="h-4 w-4 mr-2" />
-                  Areas for improvement: Data Structures
+                  Areas for improvement: Time management
                 </li>
               </ul>
             </div>
@@ -171,11 +248,17 @@ const AssessmentModal = ({ isOpen, onClose }: AssessmentModalProps) => {
                   setAnswers([]);
                   setCompleted(false);
                   setTimeLeft(30 * 60);
+                  setError(null);
                 }}
                 className="flex-1 bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors inline-flex items-center justify-center"
+                disabled={isSubmitting}
               >
-                Retake Assessment
-                <ArrowRight className="h-4 w-4 ml-2" />
+                {isSubmitting ? 'Saving...' : (
+                  <>
+                    Retake Assessment
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </>
+                )}
               </button>
             </div>
           </div>

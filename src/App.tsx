@@ -1,140 +1,76 @@
 import React, { useState } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './contexts/AuthContext';
 import Navbar from './components/Navbar';
-import VerticalNav from './components/VerticalNav';
 import Hero from './components/Hero';
 import Features from './components/Features';
-import Profile from './components/Profile';
-import ProfileSetup from './components/onboarding/ProfileSetup';
 import AuthModal from './components/AuthModal';
-import { useAuth } from './contexts/AuthContext';
-import { Loader2 } from 'lucide-react';
-
-// Import pages
 import AssessmentPage from './pages/AssessmentPage';
-import LearningPathsPage from './pages/LearningPathsPage';
-import AnalyticsPage from './pages/AnalyticsPage';
+import SkillsAssessmentPage from './pages/SkillsAssessmentPage';
+import KnowledgeAssessmentPage from './pages/KnowledgeAssessmentPage';
+import LearningStyleAssessmentPage from './pages/LearningStyleAssessmentPage';
 import LibraryPage from './pages/LibraryPage';
+import LearningPathsPage from './pages/LearningPathsPage';
 import MentoringPage from './pages/MentoringPage';
+import AnalyticsPage from './pages/AnalyticsPage';
 import AchievementsPage from './pages/AchievementsPage';
+import AdminDashboard from './pages/admin/AdminDashboard';
+import VerticalNav from './components/VerticalNav';
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
-  const location = useLocation();
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
       </div>
     );
   }
 
-  if (!user) {
-    return <Navigate to="/" state={{ from: location }} replace />;
-  }
-
-  return <>{children}</>;
+  return user ? <>{children}</> : <Navigate to="/" replace />;
 };
 
 const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signup');
-
-  const handleGetStarted = () => {
-    setAuthMode('signup');
-    setIsAuthModalOpen(true);
-  };
-
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar onGetStarted={handleGetStarted} />
+      <Navbar />
       <VerticalNav />
-      <div className="pl-64 pt-16">
-        {children}
-      </div>
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        mode={authMode}
-        onSwitchMode={() => setAuthMode(mode => mode === 'signin' ? 'signup' : 'signin')}
-      />
+      <div className="pt-16 pl-64">{children}</div>
     </div>
   );
 };
 
-const HomePage = () => {
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signup');
+const App = () => {
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const { user, isAdmin } = useAuth();
 
   const handleGetStarted = () => {
     setAuthMode('signup');
-    setIsAuthModalOpen(true);
+    setAuthModalOpen(true);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-white">
-      <Navbar onGetStarted={handleGetStarted} />
-      <main>
-        <Hero onGetStarted={handleGetStarted} />
-        <Features onGetStarted={handleGetStarted} />
-      </main>
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        mode={authMode}
-        onSwitchMode={() => setAuthMode(mode => mode === 'signin' ? 'signup' : 'signin')}
-      />
-    </div>
-  );
-};
-
-function App() {
-  const { user } = useAuth();
-  const location = useLocation();
-
-  return (
-    <React.Suspense
-      fallback={
-        <div className="min-h-screen flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
-        </div>
-      }
-    >
+    <>
       <Routes>
-        <Route 
-          path="/" 
+        <Route
+          path="/"
           element={
             user ? (
-              <Navigate to={(location.state as any)?.from?.pathname || '/assessment'} replace />
+              <Navigate to="/dashboard" replace />
             ) : (
-              <HomePage />
+              <>
+                <Navbar onGetStarted={handleGetStarted} />
+                <Hero onGetStarted={handleGetStarted} />
+                <Features />
+              </>
             )
-          } 
-        />
-        
-        <Route
-          path="/profile"
-          element={
-            <PrivateRoute>
-              <DashboardLayout>
-                <Profile />
-              </DashboardLayout>
-            </PrivateRoute>
-          }
-        />
-        
-        <Route
-          path="/setup"
-          element={
-            <PrivateRoute>
-              <ProfileSetup />
-            </PrivateRoute>
           }
         />
 
         <Route
-          path="/assessment"
+          path="/dashboard"
           element={
             <PrivateRoute>
               <DashboardLayout>
@@ -145,22 +81,33 @@ function App() {
         />
 
         <Route
-          path="/learning-paths"
+          path="/assessments/skills"
           element={
             <PrivateRoute>
               <DashboardLayout>
-                <LearningPathsPage />
+                <SkillsAssessmentPage />
               </DashboardLayout>
             </PrivateRoute>
           }
         />
 
         <Route
-          path="/analytics"
+          path="/assessments/knowledge"
           element={
             <PrivateRoute>
               <DashboardLayout>
-                <AnalyticsPage />
+                <KnowledgeAssessmentPage />
+              </DashboardLayout>
+            </PrivateRoute>
+          }
+        />
+
+        <Route
+          path="/assessments/learning-style"
+          element={
+            <PrivateRoute>
+              <DashboardLayout>
+                <LearningStyleAssessmentPage />
               </DashboardLayout>
             </PrivateRoute>
           }
@@ -178,11 +125,33 @@ function App() {
         />
 
         <Route
+          path="/learning-paths"
+          element={
+            <PrivateRoute>
+              <DashboardLayout>
+                <LearningPathsPage />
+              </DashboardLayout>
+            </PrivateRoute>
+          }
+        />
+
+        <Route
           path="/mentoring"
           element={
             <PrivateRoute>
               <DashboardLayout>
                 <MentoringPage />
+              </DashboardLayout>
+            </PrivateRoute>
+          }
+        />
+
+        <Route
+          path="/analytics"
+          element={
+            <PrivateRoute>
+              <DashboardLayout>
+                <AnalyticsPage />
               </DashboardLayout>
             </PrivateRoute>
           }
@@ -199,10 +168,28 @@ function App() {
           }
         />
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route
+          path="/admin/*"
+          element={
+            isAdmin ? (
+              <PrivateRoute>
+                <AdminDashboard />
+              </PrivateRoute>
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
+          }
+        />
       </Routes>
-    </React.Suspense>
+
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        mode={authMode}
+        onChangeMode={(mode) => setAuthMode(mode)}
+      />
+    </>
   );
-}
+};
 
 export default App;

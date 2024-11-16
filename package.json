@@ -11,20 +11,24 @@
     "server": "node server/index.js"
   },
   "dependencies": {
-    "lucide-react": "^0.344.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router-dom": "^6.22.2",
-    "express": "^4.18.3",
+    "@monaco-editor/react": "^4.6.0",
+    "axios": "^1.6.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
+    "express": "^4.18.3",
     "firebase": "^10.8.1",
     "firebase-admin": "^12.0.0",
     "jsonwebtoken": "^9.0.2",
-    "axios": "^1.6.7"
+    "lucide-react": "^0.344.0",
+    "openai": "^4.72.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^9.0.1",
+    "react-router-dom": "^6.22.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
+    "@types/node": "^22.9.0",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",

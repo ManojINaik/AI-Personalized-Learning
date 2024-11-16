@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { Mail, Lock, User, Loader2, AlertCircle } from 'lucide-react';
+import { Mail, Lock, User, Loader2, AlertCircle, Shield } from 'lucide-react';
+import { makeUserAdmin } from '../../services/auth.service';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface AuthModalContentProps {
   mode: 'signin' | 'signup';
@@ -16,12 +18,15 @@ const AuthModalContent = ({
   isLoading,
   error 
 }: AuthModalContentProps) => {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
   });
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [adminCode, setAdminCode] = useState('');
+  const [showAdminCode, setShowAdminCode] = useState(false);
 
   const validateForm = () => {
     const errors: Record<string, string> = {};
@@ -56,6 +61,15 @@ const AuthModalContent = ({
       : { email: formData.email, password: formData.password };
     
     await onSubmit(submitData);
+
+    // Check if admin code is correct and make user admin
+    if (adminCode === 'ADMIN123' && user?.id) {
+      try {
+        await makeUserAdmin(user.id);
+      } catch (error) {
+        console.error('Error making user admin:', error);
+      }
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -145,6 +159,28 @@ const AuthModalContent = ({
           </div>
           {validationErrors.password && (
             <p className="mt-1 text-sm text-red-500">{validationErrors.password}</p>
+          )}
+        </div>
+
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowAdminCode(!showAdminCode)}
+            className="text-sm text-indigo-600 hover:text-indigo-700 flex items-center"
+          >
+            <Shield className="h-4 w-4 mr-1" />
+            {showAdminCode ? 'Hide Admin Code' : 'Enter Admin Code'}
+          </button>
+          {showAdminCode && (
+            <div className="mt-2">
+              <input
+                type="text"
+                value={adminCode}
+                onChange={(e) => setAdminCode(e.target.value)}
+                placeholder="Enter admin code"
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
           )}
         </div>
 

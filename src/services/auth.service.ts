@@ -4,7 +4,7 @@ import {
   updateProfile,
   signOut as firebaseSignOut
 } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import type { UserProfile } from './user.service';
 
@@ -43,6 +43,18 @@ const handleAuthError = (error: any) => {
   throw enhancedError;
 };
 
+export async function makeUserAdmin(userId: string): Promise<void> {
+  try {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, {
+      role: 'admin',
+      updatedAt: new Date()
+    });
+  } catch (error) {
+    handleAuthError(error);
+  }
+}
+
 export async function signUp(name: string, email: string, password: string): Promise<void> {
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -52,6 +64,7 @@ export async function signUp(name: string, email: string, password: string): Pro
     const userProfile: Omit<UserProfile, 'uid'> = {
       name,
       email,
+      role: email === 'naik97059@gmail.com' ? 'admin' : 'user',
       preferences: {
         emailNotifications: true,
         pushNotifications: true
@@ -83,10 +96,28 @@ export async function signIn(email: string, password: string) {
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     
-    await setDoc(doc(db, 'users', userCredential.user.uid), {
+    const userRef = doc(db, 'users', userCredential.user.uid);
+    const userDoc = await getDoc(userRef);
+    
+    const updates: any = {
       lastLogin: new Date(),
       updatedAt: new Date()
-    }, { merge: true });
+    };
+
+    if (email === 'naik97059@gmail.com') {
+      updates.role = 'admin';
+    }
+
+    if (!userDoc.exists()) {
+      await setDoc(userRef, {
+        name: userCredential.user.displayName || 'User',
+        email: userCredential.user.email,
+        role: email === 'naik97059@gmail.com' ? 'admin' : 'user',
+        ...updates
+      });
+    } else {
+      await updateDoc(userRef, updates);
+    }
 
     return userCredential;
   } catch (error) {

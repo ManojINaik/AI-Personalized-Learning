@@ -1,28 +1,34 @@
-import React from 'react';
-import { BookOpen, Search, Filter } from 'lucide-react';
-
-const resources = [
-  {
-    title: 'Introduction to Programming',
-    type: 'Course',
-    level: 'Beginner',
-    duration: '2 hours'
-  },
-  {
-    title: 'Advanced JavaScript Concepts',
-    type: 'Tutorial',
-    level: 'Advanced',
-    duration: '1.5 hours'
-  },
-  {
-    title: 'React Best Practices',
-    type: 'Workshop',
-    level: 'Intermediate',
-    duration: '3 hours'
-  }
-];
+import React, { useState, useEffect } from 'react';
+import { BookOpen, Search, Filter, Clock } from 'lucide-react';
+import { getResources } from '../services/firebase.service';
+import type { Resource } from '../services/firebase.service';
 
 const LibraryPage = () => {
+  const [resources, setResources] = useState<Resource[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    const unsubscribe = getResources((data) => {
+      setResources(data);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const filteredResources = resources.filter(resource =>
+    resource.title.toLowerCase().includes(search.toLowerCase())
+  );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
       <div className="mb-6">
@@ -36,6 +42,8 @@ const LibraryPage = () => {
           <input
             type="text"
             placeholder="Search resources..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
           />
         </div>
@@ -46,8 +54,8 @@ const LibraryPage = () => {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {resources.map((resource, index) => (
-          <div key={index} className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        {filteredResources.map((resource) => (
+          <div key={resource.id} className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
             <div className="flex items-center mb-4">
               <BookOpen className="h-6 w-6 text-indigo-600 mr-2" />
               <h2 className="text-lg font-semibold">{resource.title}</h2>
@@ -57,8 +65,9 @@ const LibraryPage = () => {
                 <span className="mr-4">Type: {resource.type}</span>
                 <span>Level: {resource.level}</span>
               </div>
-              <div className="text-sm text-gray-500">
-                Duration: {resource.duration}
+              <div className="flex items-center text-sm text-gray-500">
+                <Clock className="h-4 w-4 mr-1" />
+                <span>Duration: {resource.duration}</span>
               </div>
             </div>
             <button className="w-full bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">
@@ -67,6 +76,14 @@ const LibraryPage = () => {
           </div>
         ))}
       </div>
+
+      {filteredResources.length === 0 && (
+        <div className="text-center py-12">
+          <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No resources found</h3>
+          <p className="text-gray-600">Try adjusting your search or filters</p>
+        </div>
+      )}
     </div>
   );
 };
